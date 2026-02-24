@@ -3,19 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard de Safra - Conversão</title>
+    <title>V4 Company | Taxa de Conversão de Safra</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header>
             <div class="header-content">
-                <div>
-                    <h1>Dashboard de Conversão de Safra</h1>
+                <div class="header-left">
+                    <div class="v4-brand">
+                        <span class="part-v4">V4</span><span class="part-company">COMPANY</span>
+                        <span class="part-separator">|</span>
+                        <h1>Taxa de Conversão de Safra</h1>
+                    </div>
                     <p class="last-update">Última atualização: <span id="lastUpdate">-</span></p>
                 </div>
                 <button id="refreshBtn" class="refresh-btn" onclick="forceRefresh()" title="Forçar atualização dos dados">
-                    🔄 Atualizar
+                    <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Atualizar
                 </button>
             </div>
         </header>
@@ -23,23 +30,28 @@
         <!-- Scorecards -->
         <section class="scorecards">
             <div class="scorecard">
+                <div class="scorecard-icon"><i data-lucide="users" style="width:20px;height:20px;"></i></div>
                 <div class="scorecard-label">Total de Leads</div>
                 <div class="scorecard-value" id="totalLeads">-</div>
             </div>
             <div class="scorecard">
+                <div class="scorecard-icon"><i data-lucide="trending-up" style="width:20px;height:20px;"></i></div>
                 <div class="scorecard-label">Leads Monetizados</div>
                 <div class="scorecard-value" id="totalMonetizados">-</div>
             </div>
             <div class="scorecard">
+                <div class="scorecard-icon"><i data-lucide="percent" style="width:20px;height:20px;"></i></div>
                 <div class="scorecard-label">Taxa de Conversão Média</div>
-                <div class="scorecard-value" id="avgConversion">-</div>
+                <div class="scorecard-value primary" id="avgConversion">-</div>
             </div>
         </section>
 
         <!-- Visão de Safra -->
         <section class="chart-section">
             <h2>Visão de Safra - Taxa de Conversão</h2>
-            <div id="safraChart"></div>
+            <div class="chart-container" id="safraChartWrapper">
+                <canvas id="safraChart"></canvas>
+            </div>
         </section>
 
         <!-- Tabela de Dados -->
@@ -65,6 +77,7 @@
         </section>
     </div>
 
-    <script src="script.js?v=4"></script>
+    <script src="script.js?v=6"></script>
+    <script>lucide.createIcons();</script>
 </body>
 </html>

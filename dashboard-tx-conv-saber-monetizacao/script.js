@@ -1,12 +1,15 @@
 // Configurações
-const API_ENDPOINT = '/api/data'; // Usar servidor local Node.js
+const API_ENDPOINT = '/api/data';
+
+// Instância do gráfico Chart.js
+let safraChartInstance = null;
 
 // Função para mostrar loading
 function showLoading() {
     document.getElementById('totalLeads').innerHTML = '<div class="spinner"></div>';
     document.getElementById('totalMonetizados').innerHTML = '<div class="spinner"></div>';
     document.getElementById('avgConversion').innerHTML = '<div class="spinner"></div>';
-    document.getElementById('safraChart').innerHTML = '<div class="loading-message">Carregando dados... Isso pode levar até 1 minuto.</div>';
+    document.getElementById('safraChartWrapper').innerHTML = '<div class="loading-message">Carregando dados...</div>';
     document.getElementById('tableBody').innerHTML = `
         <tr>
             <td colspan="4" class="loading">
@@ -20,36 +23,23 @@ function showLoading() {
 // Função para buscar dados do servidor Node.js (que gerencia o cache)
 async function getData(forceRefresh = false) {
     try {
-        console.log('🌐 Buscando dados do servidor...');
-
-        // Configurar timeout para mostrar loading apenas se demorar
         let loadingTimeout = null;
-        let loadingShown = false;
 
-        // Se for refresh forçado, mostrar loading imediatamente
         if (forceRefresh) {
             showLoading();
-            loadingShown = true;
         } else {
-            // Caso contrário, mostrar loading apenas se demorar mais de 300ms
-            loadingTimeout = setTimeout(() => {
-                showLoading();
-                loadingShown = true;
-            }, 300);
+            loadingTimeout = setTimeout(() => showLoading(), 300);
         }
 
-        // Adicionar cache-buster para evitar cache do navegador
         const timestamp = new Date().getTime();
         let url = `${API_ENDPOINT}?_t=${timestamp}`;
 
-        // Adicionar query parameter se for refresh forçado
         if (forceRefresh) {
             url += `&refresh=true`;
         }
 
         const response = await fetch(url, { cache: 'no-store' });
 
-        // Limpar timeout se a resposta foi rápida
         if (loadingTimeout) {
             clearTimeout(loadingTimeout);
         }
@@ -60,22 +50,13 @@ async function getData(forceRefresh = false) {
 
         const data = await response.json();
 
-        // Verificar se veio do cache ou da API
-        if (data.fromCache) {
-            console.log(`✅ Dados do cache (${data.cacheAge}) - carregamento instantâneo`);
-        } else {
-            console.log('📦 Dados atualizados da API externa');
-        }
-
-        // Validar estrutura dos dados
         if (!data || !data.data || !Array.isArray(data.data)) {
-            console.error('❌ Estrutura de dados inválida:', data);
             throw new Error('Servidor retornou dados em formato inesperado');
         }
 
         return data;
     } catch (error) {
-        console.error('❌ Erro ao buscar dados:', error);
+        console.error('Erro ao buscar dados:', error);
         throw error;
     }
 }
@@ -110,38 +91,130 @@ function renderScorecards(data) {
     document.getElementById('avgConversion').textContent = formatPercentage(avgConversion);
 }
 
-// Função para renderizar gráfico de barras
+// Função para renderizar gráfico de linha com área (Chart.js)
 function renderChart(data) {
     const safraData = data.data;
-    const chartContainer = document.getElementById('safraChart');
+    const wrapper = document.getElementById('safraChartWrapper');
 
-    chartContainer.innerHTML = '';
+    // Destruir instância anterior se existir
+    if (safraChartInstance) {
+        safraChartInstance.destroy();
+        safraChartInstance = null;
+    }
 
-    // Encontrar o valor máximo para escala
-    const maxRate = Math.max(...safraData.map(item => item.convertion_rate));
+    // Recriar o canvas (necessário após showLoading substituir innerHTML)
+    wrapper.innerHTML = '<canvas id="safraChart"></canvas>';
+    const ctx = document.getElementById('safraChart').getContext('2d');
 
-    safraData.forEach(item => {
-        const barContainer = document.createElement('div');
-        barContainer.className = 'chart-bar';
+    const labels = safraData.map(item => item.safra);
+    const values = safraData.map(item => item.convertion_rate * 100);
 
-        const height = maxRate > 0 ? (item.convertion_rate / maxRate) * 250 : 0;
+    // Gradiente de preenchimento
+    const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+    gradient.addColorStop(0, 'rgba(255, 0, 0, 0.3)');
+    gradient.addColorStop(0.5, 'rgba(255, 0, 0, 0.08)');
+    gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
 
-        const bar = document.createElement('div');
-        bar.className = 'bar';
-        bar.style.height = `${height}px`;
-
-        const barValue = document.createElement('div');
-        barValue.className = 'bar-value';
-        barValue.textContent = formatPercentage(item.convertion_rate);
-
-        const barLabel = document.createElement('div');
-        barLabel.className = 'bar-label';
-        barLabel.textContent = item.safra;
-
-        bar.appendChild(barValue);
-        barContainer.appendChild(bar);
-        barContainer.appendChild(barLabel);
-        chartContainer.appendChild(barContainer);
+    safraChartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Taxa de Conversão (%)',
+                data: values,
+                borderColor: '#ff0000',
+                borderWidth: 2.5,
+                backgroundColor: gradient,
+                fill: true,
+                tension: 0.4,
+                pointBackgroundColor: '#ff0000',
+                pointBorderColor: '#0d0d0d',
+                pointBorderWidth: 2,
+                pointRadius: 5,
+                pointHoverRadius: 8,
+                pointHoverBackgroundColor: '#ff0000',
+                pointHoverBorderColor: '#ffffff',
+                pointHoverBorderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index',
+            },
+            plugins: {
+                legend: {
+                    display: false,
+                },
+                tooltip: {
+                    backgroundColor: '#1a1a1a',
+                    titleColor: '#ffffff',
+                    bodyColor: '#cccccc',
+                    borderColor: '#333333',
+                    borderWidth: 1,
+                    padding: 12,
+                    titleFont: {
+                        family: "'Montserrat', sans-serif",
+                        size: 13,
+                        weight: 600,
+                    },
+                    bodyFont: {
+                        family: "'Montserrat', sans-serif",
+                        size: 12,
+                    },
+                    displayColors: false,
+                    callbacks: {
+                        title: function(items) {
+                            return 'Safra ' + items[0].label;
+                        },
+                        label: function(context) {
+                            return 'Conversão: ' + context.parsed.y.toFixed(2) + '%';
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: '#666666',
+                        font: {
+                            family: "'Montserrat', sans-serif",
+                            size: 11,
+                            weight: 500,
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.03)',
+                        drawBorder: false,
+                    },
+                    border: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: '#666666',
+                        font: {
+                            family: "'Montserrat', sans-serif",
+                            size: 11,
+                        },
+                        callback: function(value) {
+                            return value.toFixed(1) + '%';
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.03)',
+                        drawBorder: false,
+                    },
+                    border: {
+                        color: 'rgba(255, 255, 255, 0.05)',
+                    }
+                }
+            }
+        }
     });
 }
 
@@ -178,40 +251,37 @@ function renderDashboard(data) {
     renderChart(data);
     renderTable(data);
     updateTimestamp(data);
+
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
 }
 
 // Inicializar dashboard
 async function init(forceRefresh = false) {
-    console.log('🚀 Inicializando dashboard...');
-
     try {
         const data = await getData(forceRefresh);
-
-        console.log('✅ Dados obtidos com sucesso!');
-
         renderDashboard(data);
     } catch (error) {
-        console.error('❌ Erro ao inicializar dashboard:', error);
-
         const errorMessage = error.message || 'Erro desconhecido';
 
         document.getElementById('totalLeads').textContent = '-';
         document.getElementById('totalMonetizados').textContent = '-';
         document.getElementById('avgConversion').textContent = '-';
-        document.getElementById('safraChart').innerHTML = `
-            <div class="loading-message" style="color: #e74c3c;">
-                ⚠️ Erro ao carregar dados
+        document.getElementById('safraChartWrapper').innerHTML = `
+            <div class="loading-message" style="color: #ef4444;">
+                Erro ao carregar dados
             </div>
         `;
         document.getElementById('tableBody').innerHTML = `
             <tr>
-                <td colspan="4" class="loading" style="color: #e74c3c;">
-                    ⚠️ Erro ao carregar dados: ${errorMessage}
+                <td colspan="4" class="loading" style="color: #ef4444;">
+                    Erro ao carregar dados: ${errorMessage}
                     <br><br>
                     <small>Verifique o console (F12) para mais detalhes</small>
                     <br><br>
                     <button onclick="forceRefresh()"
-                            style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; margin-top: 10px;">
+                            style="padding: 8px 20px; background: #ff0000; color: white; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; font-family: 'Montserrat', sans-serif; font-weight: 700; text-transform: uppercase; font-size: 12px;">
                         Tentar Novamente
                     </button>
                 </td>
@@ -226,25 +296,28 @@ async function forceRefresh() {
     const originalText = btn.innerHTML;
 
     btn.disabled = true;
-    btn.innerHTML = '⏳ Atualizando...';
+    btn.innerHTML = '<i data-lucide="loader" style="width:14px;height:14px;"></i> Atualizando...';
     btn.style.opacity = '0.6';
     btn.style.cursor = 'not-allowed';
 
-    try {
-        console.log('🔄 Atualização forçada pelo usuário');
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
 
+    try {
         const data = await getData(true);
         renderDashboard(data);
-
-        console.log('✅ Atualização concluída!');
     } catch (error) {
-        console.error('❌ Erro ao atualizar:', error);
         alert('Erro ao atualizar. Verifique sua conexão e tente novamente.');
     } finally {
         btn.disabled = false;
         btn.innerHTML = originalText;
         btn.style.opacity = '1';
         btn.style.cursor = 'pointer';
+
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
     }
 }
 
