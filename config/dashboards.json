@@ -1,0 +1,10 @@
+[
+  {
+    "id": "tx-conv-saber-monetizacao",
+    "title": "Taxa de Conversão de Safra",
+    "icon": "trending-up",
+    "componentPath": "TxConvSaberMonetizacao",
+    "apiEndpoint": "API_ENDPOINT_CONV_SABER_MONETIZACAO",
+    "cacheTTL": 1800000
+  }
+]

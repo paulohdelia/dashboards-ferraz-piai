@@ -1,6 +1,0 @@
-{
-  "ignore": ["cache.json", "node_modules/*"],
-  "watch": ["server.js", ".env"],
-  "ext": "js,json",
-  "verbose": false
-}

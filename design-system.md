@@ -5,6 +5,24 @@
 
 ---
 
+## Paleta de Cores para Gráficos
+
+**Ordem padrão de cores para visualizações** (evitar azul quando possível):
+
+1. `#22c55e` - Verde (Tier 1 / Categoria A)
+2. `#f59e0b` - Laranja (Tier 2 / Categoria B)
+3. `#fbbf24` - Amarelo (Tier 3 / Categoria C)
+4. `#ef4444` - Vermelho (Tier 4 / Categoria D)
+5. `#a855f7` - Roxo (Tier 5 / Categoria E)
+6. `#84cc16` - Verde-limão (Tier 6 / Categoria F)
+7. `#f43f5e` - Rosa (Tier 7 / Categoria G)
+8. `#06b6d4` - Ciano (Tier 8 / usar apenas se necessário)
+9. `#6b7280` - Cinza (Sem categoria / Outros)
+
+**Uso:** Seguir sempre esta ordem para manter consistência visual entre dashboards. Usar cores sequencialmente conforme número de categorias.
+
+---
+
 ## Fundamentos
 
 ### Filosofia de Design
@@ -107,12 +125,12 @@
 ### Fonte Principal
 
 ```css
-font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+font-family: 'Ubuntu', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 ```
 
-> A referencia usa system fonts. Para novos dashboards, pode-se usar `'Montserrat', sans-serif` como alternativa corporativa:
+> Fonte padrão: **Ubuntu** (Google Fonts). Fallback para system fonts.
 > ```html
-> <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+> <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;700&display=swap" rel="stylesheet">
 > ```
 
 ### Hierarquia Tipografica

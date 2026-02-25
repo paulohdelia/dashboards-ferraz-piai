@@ -15,6 +15,10 @@ yarn-error.log*
 # Cache
 cache.json
 **/cache.json
+dashboards-data/*/cache.json
+
+# Build output
+dist/
 
 # IDE
 .vscode/

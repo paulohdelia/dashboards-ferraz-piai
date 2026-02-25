@@ -1,0 +1,222 @@
+/**
+ * Design System - Dashboards V4 Company
+ * Sistema de design visual baseado em design-system.md v2
+ * Referência: https://tremborage.v4ferrazpiai.com.br/
+ */
+
+:root {
+  /* === Cores Primárias === */
+  --color-primary: #ff0000;
+  --color-primary-dark: #cc0000;
+
+  /* === Cores Semânticas === */
+  --color-safe: #22c55e;
+  --color-care: #fbbf24;
+  --color-danger: #ef4444;
+  --color-info: #3b82f6;
+
+  /* === Paleta de Gráficos (sem azul) === */
+  --chart-color-1: #22c55e;  /* Verde */
+  --chart-color-2: #f59e0b;  /* Laranja */
+  --chart-color-3: #fbbf24;  /* Amarelo */
+  --chart-color-4: #ef4444;  /* Vermelho */
+  --chart-color-5: #a855f7;  /* Roxo */
+  --chart-color-6: #84cc16;  /* Verde-limão */
+  --chart-color-7: #f43f5e;  /* Rosa */
+  --chart-color-8: #06b6d4;  /* Ciano (usar apenas se necessário) */
+  --chart-color-neutral: #6b7280;  /* Cinza */
+
+  /* === Backgrounds === */
+  --bg-body: #0d0d0d;
+  --bg-card: #141414;
+  --bg-inner: #1a1a1a;
+  --bg-hover: #1a1a1a;
+  --bg-input: #0d0d0d;
+  --bg-toggle-active: #2a2a2a;
+
+  /* === Texto === */
+  --text-high: #ffffff;
+  --text-medium: #cccccc;
+  --text-low: #999999;
+  --text-muted: #888888;
+  --text-lowest: #666666;
+
+  /* === Bordas === */
+  --border-card: #2a2a2a;
+  --border-row: #1f1f1f;
+  --border-input: #333333;
+  --border-tooltip: #333333;
+
+  /* === Espaçamento === */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 15px;
+  --spacing-lg: 20px;
+  --spacing-xl: 25px;
+  --spacing-2xl: 30px;
+
+  /* === Border Radius === */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 12px;
+  --radius-round: 50%;
+
+  /* === Tipografia === */
+  --font-family: 'Ubuntu', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+  /* Tamanhos */
+  --font-size-xs: 10px;
+  --font-size-sm: 11px;
+  --font-size-base: 12px;
+  --font-size-md: 13px;
+  --font-size-lg: 14px;
+  --font-size-xl: 22px;
+  --font-size-kpi: 48px;
+  --font-size-kpi-compact: 36px;
+
+  /* Pesos */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  /* === Sombras === */
+  --shadow-tooltip: 0 4px 6px rgba(0, 0, 0, 0.3);
+
+  /* === Transições === */
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+}
+
+/* === Reset & Base === */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  color: var(--text-medium);
+  background-color: var(--bg-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* === Tipografia === */
+
+h1 {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-high);
+  letter-spacing: 1px;
+}
+
+h2 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-medium);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+h3 {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--text-low);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Section title com barra vermelha */
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin: var(--spacing-2xl) 0 var(--spacing-md) 0;
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-medium);
+}
+
+.section-title::before {
+  content: '';
+  width: 4px;
+  height: 20px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* === Utilitários === */
+
+.text-high {
+  color: var(--text-high);
+}
+
+.text-medium {
+  color: var(--text-medium);
+}
+
+.text-low {
+  color: var(--text-low);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.text-lowest {
+  color: var(--text-lowest);
+}
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-safe {
+  color: var(--color-safe);
+}
+
+.text-care {
+  color: var(--color-care);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+.text-info {
+  color: var(--color-info);
+}
+
+/* === Loading Spinner === */
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-input);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+.spinner-lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
