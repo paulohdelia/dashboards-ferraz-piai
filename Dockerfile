@@ -40,14 +40,14 @@ RUN mkdir -p dashboards-data
 
 # Environment variables (defaults)
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=80
 
-# Expose port
-EXPOSE 3000
+# Expose port (can be overridden with PORT env var)
+EXPOSE 80
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+# Health check (using PORT env var)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "const port = process.env.PORT || 80; require('http').get('http://localhost:' + port + '/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Start Express server (serves frontend + API)
 CMD ["node", "server/index.js"]
