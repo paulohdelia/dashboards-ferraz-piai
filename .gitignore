@@ -26,3 +26,6 @@ dist/
 *.swp
 *.swo
 *~
+
+# Deployment (pode conter informações sensíveis)
+DEPLOY.md
