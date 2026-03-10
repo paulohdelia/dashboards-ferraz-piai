@@ -29,6 +29,7 @@ Aplicação SPA centralizada que consolida todos os dashboards da V4 Company em 
 
 ### Features
 
+- **Autenticação** — login com sessão server-side (express-session, cookie 8h)
 - **Hot Reload < 100ms** via Vite
 - **Design System Consistente** — fonte Ubuntu, paleta padronizada sem azul
 - **Componentes Reutilizáveis** — VScorecard, VDataTable, VBarChart, VStatusModal, etc.
@@ -71,8 +72,11 @@ dashboards-v4/
 │   ├── lib/
 │   │   ├── api-client.js      # HTTP client (timeout 5min)
 │   │   └── cache-manager.js   # File-based cache
+│   ├── middleware/
+│   │   └── requireAuth.js     # Middleware de autenticação (401 se sem sessão)
 │   └── routes/
-│       └── api.js             # /api/dashboards, /api/data/:id, /api/cache/status/:id
+│       ├── api.js             # /api/dashboards, /api/data/:id, /api/cache/status/:id
+│       └── auth.js            # /api/auth/login, /api/auth/logout, /api/auth/check
 ├── config/
 │   └── dashboards.json        # Registry de dashboards
 ├── dashboards-data/           # Cache gerado em runtime (gitignored)
@@ -177,6 +181,11 @@ A rota `/meu-dashboard` é criada automaticamente pelo router.
 ```bash
 PORT=3001
 NODE_ENV=development
+
+# Autenticação
+USER_NAME=seu_usuario
+USER_PASSWORD=sua_senha_segura
+SESSION_SECRET=troque_por_uma_string_aleatoria_longa
 
 API_ENDPOINT_CONV_SABER_MONETIZACAO=https://...
 API_ENDPOINT_GTM_MOTION=https://...

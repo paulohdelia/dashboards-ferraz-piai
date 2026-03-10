@@ -10,9 +10,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Stack:**
 - Frontend: Vue 3 + Vite + Vue Router + Pinia
-- Backend: Express.js + Node-Fetch
+- Backend: Express.js + Node-Fetch + express-session
 - Build: Vite (HMR < 100ms)
 - Cache: File-based (5 minutos, configurável por dashboard)
+- Auth: Sessão server-side com cookie httpOnly (8h)
 
 ## Estrutura
 
@@ -25,14 +26,14 @@ dashboards-v4/
 │   ├── main.js                # Vue app initialization
 │   ├── App.vue                # Root component
 │   ├── router/                # Vue Router (auto-generated routes)
-│   ├── stores/                # Pinia stores
+│   ├── stores/                # Pinia stores (dashboardData, auth)
 │   ├── components/            # Componentes reutilizáveis
 │   │   ├── layout/            # VLayout, VSidebar
 │   │   ├── ui/                # VScorecard, VDataTable, VToggleGroup, VRefreshButton, VStatusModal
 │   │   └── charts/            # VBarChart, VLineChart, VChartCard
 │   ├── composables/           # useDashboardData, useFormatters, useChartDefaults
 │   ├── styles/                # CSS do design system
-│   ├── views/                 # NotFound
+│   ├── views/                 # NotFound, LoginView
 │   └── dashboards/            # Dashboards específicos
 │       ├── TxConvSaberMonetizacao/
 │       ├── GtmMotion/
@@ -43,8 +44,11 @@ dashboards-v4/
 │   ├── lib/                   # Utilitários
 │   │   ├── api-client.js      # HTTP client (timeout 5min)
 │   │   └── cache-manager.js   # File-based cache
+│   ├── middleware/
+│   │   └── requireAuth.js     # 401 se não autenticado
 │   └── routes/
-│       └── api.js             # /api/dashboards, /api/data/:id, /api/cache/status/:id
+│       ├── api.js             # /api/dashboards, /api/data/:id, /api/cache/status/:id
+│       └── auth.js            # /api/auth/login, /api/auth/logout, /api/auth/check
 ├── config/
 │   └── dashboards.json        # Registry de dashboards
 ├── dashboards-data/           # Cache por dashboard (gitignored)
@@ -185,6 +189,17 @@ Cada dashboard em `config/dashboards.json` pode ter:
 - Co-authored footer quando usar Claude
 - Sem `--no-verify`
 
+## Autenticação
+
+- **Sessão server-side** via `express-session` (in-memory, cookie httpOnly 8h)
+- **Variáveis necessárias:** `USER_NAME`, `USER_PASSWORD`, `SESSION_SECRET` no `.env`
+- **Rotas protegidas:** `/api/dashboards`, `/api/data/*`, `/api/cache/*` — retornam 401 sem sessão
+- **Rotas abertas:** `/api/auth/*`, `/health`
+- **Guard de rota:** `router.beforeEach` chama `GET /api/auth/check` antes de cada navegação
+- **Login redireciona para:** `/raio-x-financeiro`
+- **`App.vue` carrega `/api/dashboards`** via `watch(route.name)` — só após sair do `/login` (evita fetch sem sessão)
+- **`LoginView.vue`** é standalone — sem `VLayout`, sem sidebar
+
 ## Gotchas
 
 - **Vite HMR:** Funciona para Vue/CSS, mas mudanças em `dashboards.json` requerem restart do servidor Express
@@ -195,3 +210,4 @@ Cada dashboard em `config/dashboards.json` pode ter:
 - **API timeout:** 5min padrão (APIs podem demorar), ajustar em `api-client.js` se necessário
 - **Status modal:** Disparado tanto na troca de rota quanto no carregamento inicial dos dashboards (watch duplo em VLayout)
 - **API /api/dashboards:** Retorna `status` e `statusMessage` — ao adicionar novos campos ao registry, verificar se precisam ser expostos nessa rota
+- **Sessão in-memory:** Reiniciar o servidor derruba todas as sessões ativas

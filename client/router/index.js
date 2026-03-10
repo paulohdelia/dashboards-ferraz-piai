@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../stores/auth.js'
+import LoginView from '../views/LoginView.vue'
 
 // Import dashboards registry
 // In production, this should be loaded from API, but for routing we need it statically
@@ -22,6 +24,13 @@ const dashboardRoutes = dashboardsConfig.map((dashboard) => ({
 const router = createRouter({
   history: createWebHistory(),
   routes: [
+    // Login (open)
+    {
+      path: '/login',
+      name: 'login',
+      component: LoginView
+    },
+
     // Redirect root to first dashboard
     {
       path: '/',
@@ -40,14 +49,21 @@ const router = createRouter({
   ]
 })
 
-// Navigation guard to update page title
-router.beforeEach((to, from, next) => {
+// Auth guard
+router.beforeEach(async (to) => {
+  if (to.name === 'login') return true
+
+  const auth = useAuthStore()
+  await auth.check()
+
+  if (!auth.authenticated) return { name: 'login' }
+
+  // Update page title
   if (to.meta.title) {
     document.title = `${to.meta.title} - Dashboards V4`
   } else {
     document.title = 'Dashboards V4'
   }
-  next()
 })
 
 // Log route changes in development
