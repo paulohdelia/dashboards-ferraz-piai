@@ -1,11 +1,14 @@
 import express from 'express'
 import session from 'express-session'
+import FileStore from 'session-file-store'
 import dotenv from 'dotenv'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import apiRoutes from './routes/api.js'
 import authRoutes from './routes/auth.js'
 import { requireAuth } from './middleware/requireAuth.js'
+
+const SessionFileStore = FileStore(session)
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -21,10 +24,15 @@ const NODE_ENV = process.env.NODE_ENV || 'development'
 app.use(express.json())
 
 // Session
+const sessionStore = NODE_ENV === 'development'
+  ? new SessionFileStore({ path: join(__dirname, '..', '.sessions'), logFn: () => {} })
+  : undefined
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dashboards-v4-secret',
   resave: false,
   saveUninitialized: false,
+  store: sessionStore,
   cookie: { httpOnly: true, maxAge: 8 * 60 * 60 * 1000 } // 8h
 }))
 

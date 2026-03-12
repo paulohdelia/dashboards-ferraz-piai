@@ -43,7 +43,8 @@ async function findDashboard(dashboardId) {
  */
 router.get('/data/:dashboardId', async (req, res, next) => {
   const { dashboardId } = req.params
-  const forceRefresh = req.query.refresh === 'true'
+  const { refresh, ...apiParams } = req.query
+  const forceRefresh = refresh === 'true'
 
   try {
     // Find dashboard configuration
@@ -70,12 +71,24 @@ router.get('/data/:dashboardId', async (req, res, next) => {
       })
     }
 
+    // Build cache key — include extra params so each period gets its own cache
+    const paramSuffix = Object.keys(apiParams).length > 0
+      ? '--' + Object.values(apiParams).join('--')
+      : ''
+    const cacheKey = `${dashboardId}${paramSuffix}`
+
+    // Build external API URL with params
+    const qs = Object.keys(apiParams).length > 0
+      ? `?${new URLSearchParams(apiParams).toString()}`
+      : ''
+    const apiUrl = `${apiEndpoint}${qs}`
+
     let data
     let fromCache = false
 
     // Try to get from cache (unless force refresh)
     if (!forceRefresh) {
-      const cachedData = await getCachedData(dashboardId, dashboard.cacheTTL)
+      const cachedData = await getCachedData(cacheKey, dashboard.cacheTTL)
 
       if (cachedData) {
         data = cachedData
@@ -85,14 +98,15 @@ router.get('/data/:dashboardId', async (req, res, next) => {
 
     // Fetch from API if no cache or force refresh
     if (!data) {
-      console.log(`[${new Date().toISOString()}] Fetching fresh data for ${dashboardId}`)
-      data = await fetchData(apiEndpoint)
+      console.log(`[${new Date().toISOString()}] Fetching fresh data for ${cacheKey}`)
+      data = await fetchData(apiUrl)
 
       // Save to cache
-      await setCachedData(dashboardId, data)
+      await setCachedData(cacheKey, data)
     }
 
     // Return data
+    res.set('Cache-Control', 'no-store')
     res.json({
       data,
       fromCache,

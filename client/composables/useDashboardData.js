@@ -14,14 +14,22 @@ export function useDashboardData(dashboardId) {
   /**
    * Fetch dashboard data
    * @param {boolean} forceRefresh - Bypass cache
+   * @param {object} params - Extra query params forwarded to the backend/API
    */
-  const fetchData = async (forceRefresh = false) => {
+  const fetchData = async (forceRefresh = false, params = {}) => {
     loading.value = true
     error.value = null
 
     try {
-      const url = `/api/data/${dashboardId}${forceRefresh ? '?refresh=true' : ''}`
+      const query = new URLSearchParams({ ...(forceRefresh ? { refresh: 'true' } : {}), ...params })
+      const qs = query.toString()
+      const url = `/api/data/${dashboardId}${qs ? `?${qs}` : ''}`
       const response = await fetch(url)
+
+      if (response.status === 401) {
+        window.location.href = '/login'
+        return
+      }
 
       if (!response.ok) {
         const errorData = await response.json()

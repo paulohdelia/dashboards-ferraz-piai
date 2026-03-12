@@ -167,6 +167,11 @@ watch(mesInicial, (val) => {
   if (mesFinal.value < val) mesFinal.value = val
 })
 
+const fetchWithPeriod = (forceRefresh = false) =>
+  fetchData(forceRefresh, { mesInicial: mesInicial.value, mesFinal: mesFinal.value })
+
+watch([mesInicial, mesFinal], () => fetchWithPeriod())
+
 // ── Channel selection ─────────────────────────────────────────────────────────
 const selectedChannels = ref(['consolidado'])
 const ALL_CHANNEL_IDS  = CANAIS.map((c) => c.id)
@@ -199,8 +204,130 @@ function handleChannelClick(channelId) {
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
+const toNum = (v) => (v === '' || v == null) ? null : Number(v)
+
+function transformApiData(rawData, mesIni, mesFim) {
+  // API retorna { data: { kpis, funil } } ou [{ data: { kpis, funil } }]
+  const source = Array.isArray(rawData) ? rawData[0]?.data : rawData?.data
+  if (!source) return null
+
+  const rawKpis = (source.kpis ?? []).filter((r) => r.mes >= mesIni && r.mes <= mesFim)
+  const rawFunil = (source.funil ?? []).filter((r) => r.mes >= mesIni && r.mes <= mesFim)
+  const CANAL_LABEL = Object.fromEntries(CANAIS.map((c) => [c.id, c.label]))
+
+  // Group KPIs by canal, summing across months
+  const kpisByCanal = {}
+  for (const row of rawKpis) {
+    const canal = row.canal
+    if (!kpisByCanal[canal]) {
+      kpisByCanal[canal] = {
+        leads_value: 0, leads_provisionado: null, leads_meta: 0,
+        mql_value: 0,   mql_provisionado: null,   mql_meta: 0,
+        sql_value: 0,   sql_meta: 0,
+        sal_value: 0,   sal_meta: 0,
+        commit_value: 0, commit_meta: 0,
+        booking_value: 0, booking_meta: 0,
+      }
+    }
+    const acc = kpisByCanal[canal]
+    acc.leads_value += toNum(row.leads_value) ?? 0
+    const lp = toNum(row.leads_provisionado)
+    if (lp != null) acc.leads_provisionado = (acc.leads_provisionado ?? 0) + lp
+    acc.leads_meta += toNum(row.leads_meta) ?? 0
+    acc.mql_value += toNum(row.mql_value) ?? 0
+    const mp = toNum(row.mql_provisionado)
+    if (mp != null) acc.mql_provisionado = (acc.mql_provisionado ?? 0) + mp
+    acc.mql_meta += toNum(row.mql_meta) ?? 0
+    acc.sql_value += toNum(row.sql_value) ?? 0
+    acc.sql_meta  += toNum(row.sql_meta)  ?? 0
+    acc.sal_value += toNum(row.sal_value) ?? 0
+    acc.sal_meta  += toNum(row.sal_meta)  ?? 0
+    acc.commit_value  += toNum(row.commit_value)  ?? 0
+    acc.commit_meta   += toNum(row.commit_meta)   ?? 0
+    acc.booking_value += toNum(row.booking_value) ?? 0
+    acc.booking_meta  += toNum(row.booking_meta)  ?? 0
+  }
+
+  // Group Funil by canal, summing across months
+  const funilByCanal = {}
+  for (const row of rawFunil) {
+    const canal = row.canal
+    if (!funilByCanal[canal]) {
+      funilByCanal[canal] = {
+        leads_value: 0, mql_value: 0, sql_value: 0,
+        sal_value: 0, commit_value: 0, booking_value: 0,
+      }
+    }
+    const acc = funilByCanal[canal]
+    acc.leads_value   += toNum(row.leads_value)   ?? 0
+    acc.mql_value     += toNum(row.mql_value)     ?? 0
+    acc.sql_value     += toNum(row.sql_value)     ?? 0
+    acc.sal_value     += toNum(row.sal_value)     ?? 0
+    acc.commit_value  += toNum(row.commit_value)  ?? 0
+    acc.booking_value += toNum(row.booking_value) ?? 0
+  }
+
+  // Build channels map
+  const channels = {}
+  const allCanals = new Set([...Object.keys(kpisByCanal), ...Object.keys(funilByCanal)])
+
+  for (const canal of allCanals) {
+    const k = kpisByCanal[canal] ?? {}
+    const f = funilByCanal[canal] ?? {}
+
+    const commitVal   = k.commit_value  ?? 0
+    const commitMeta  = k.commit_meta   ?? 0
+    const bookingVal  = k.booking_value ?? 0
+    const bookingMeta = k.booking_meta  ?? 0
+
+    const kpis = {
+      leads:   { value: k.leads_value ?? 0, provisionado: k.leads_provisionado, meta: k.leads_meta ?? 0, delta: null },
+      mql:     { value: k.mql_value   ?? 0, provisionado: k.mql_provisionado,   meta: k.mql_meta   ?? 0, delta: null },
+      sql:     { value: k.sql_value   ?? 0, provisionado: null, meta: k.sql_meta   ?? 0, delta: null },
+      sal:     { value: k.sal_value   ?? 0, provisionado: null, meta: k.sal_meta   ?? 0, delta: null },
+      commit:  { value: commitVal,          provisionado: null, meta: commitMeta,         delta: null },
+      avgTicket: {
+        value:        commitVal  > 0 ? Math.round(bookingVal  / commitVal)  : null,
+        provisionado: null,
+        meta:         commitMeta > 0 ? Math.round(bookingMeta / commitMeta) : null,
+        delta: null,
+      },
+      booking: { value: bookingVal, provisionado: null, meta: bookingMeta, delta: null },
+    }
+
+    const fl  = f.leads_value   ?? 0
+    const fm  = f.mql_value     ?? 0
+    const fs  = f.sql_value     ?? 0
+    const fsal = f.sal_value    ?? 0
+    const fc  = f.commit_value  ?? 0
+    const fb  = f.booking_value ?? 0
+
+    const cr1v = fl   > 0 ? (fm  / fl)   * 100 : 0
+    const cr2v = fm   > 0 ? (fs  / fm)   * 100 : 0
+    const cr3v = fs   > 0 ? (fsal / fs)  * 100 : 0
+    const cr4v = fsal > 0 ? (fc  / fsal) * 100 : 0
+    const mwv  = fm   > 0 ? (fc  / fm)   * 100 : 0
+
+    const tiers = [{
+      tier:      CANAL_LABEL[canal] ?? canal,
+      leads: fl, mql: fm, sql: fs, sal: fsal, commit: fc, booking: fb,
+      avgTicket: fc > 0 ? Math.round(fb / fc) : 0,
+      cr1:    { val: cr1v, color: crColor(cr1v, 70, 50) },
+      cr2:    { val: cr2v, color: crColor(cr2v, 25, 15) },
+      cr3:    { val: cr3v, color: crColor(cr3v, 80, 65) },
+      cr4:    { val: cr4v, color: crColor(cr4v, 20, 12) },
+      mqlWon: { val: mwv,  color: crColor(mwv,  5,  3)  },
+      isTotal: true,
+    }]
+
+    channels[canal] = { kpis, tiers }
+  }
+
+  return { channels }
+}
+
 const resolvedData = computed(() => {
-  if (data.value) return data.value
+  if (data.value) return transformApiData(data.value, mesInicial.value, mesFinal.value)
   if (import.meta.env.DEV) return MOCK_DATA
   return null
 })
@@ -313,14 +440,14 @@ const tableTitle = computed(() => {
 const lastUpdateTime = ref(null)
 
 async function handleRefresh() {
-  await fetchData(true)
+  await fetchWithPeriod(true)
   lastUpdateTime.value = formatDateTime(new Date().toISOString())
   await nextTick()
   if (window.lucide) window.lucide.createIcons()
 }
 
 onMounted(async () => {
-  await fetchData()
+  await fetchWithPeriod()
   lastUpdateTime.value = formatDateTime(new Date().toISOString())
   await nextTick()
   if (window.lucide) window.lucide.createIcons()

@@ -16,6 +16,9 @@ yarn-error.log*
 # Cache
 dashboards-data/
 
+# Sessions (dev)
+.sessions/
+
 # Build output
 dist/
 
