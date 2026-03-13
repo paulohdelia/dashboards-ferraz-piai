@@ -183,24 +183,7 @@ function isChannelActive(id) {
 }
 
 function handleChannelClick(channelId) {
-  if (channelId === 'consolidado') {
-    selectedChannels.value = ['consolidado']
-    return
-  }
-  const current = selectedChannels.value
-  if (current.includes('consolidado')) {
-    // From consolidado → exclusive
-    selectedChannels.value = [channelId]
-    return
-  }
-  const idx = current.indexOf(channelId)
-  if (idx >= 0) {
-    // Deselect (unless it's the last)
-    if (current.length > 1) selectedChannels.value = current.filter((id) => id !== channelId)
-  } else {
-    // Add to selection (multi-select)
-    selectedChannels.value = [...current, channelId]
-  }
+  selectedChannels.value = [channelId]
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -248,23 +231,75 @@ function transformApiData(rawData, mesIni, mesFim) {
     acc.booking_meta  += toNum(row.booking_meta)  ?? 0
   }
 
-  // Group Funil by canal, summing across months
+  // Check if funil has tier-level data (field "tier" present in rows)
+  const hasTierData = rawFunil.some((r) => r.tier != null)
+
+  const TIER_ORDER = ['Enterprise', 'Large', 'Medium', 'Small', 'Tiny', 'Non-ICP', 'Sem mapeamento', 'Total']
+
+  // Group Funil by canal + tier (when tier data is available), or by canal only
   const funilByCanal = {}
   for (const row of rawFunil) {
     const canal = row.canal
-    if (!funilByCanal[canal]) {
-      funilByCanal[canal] = {
-        leads_value: 0, mql_value: 0, sql_value: 0,
-        sal_value: 0, commit_value: 0, booking_value: 0,
+    if (!funilByCanal[canal]) funilByCanal[canal] = {}
+
+    if (hasTierData) {
+      // Funil sheet uses: tier, subcategoria, leads, mql, sql, sal, commit, booking, is_empty_row, is_total
+      const tier      = row.tier ?? 'Sem mapeamento'
+      const sub       = row.subcategoria ?? null
+      const isEmpty   = !!(row.is_empty_row || row.isEmptyRow)
+      const isTotalRow = !!(row.is_total || row.isTotal)
+      if (!funilByCanal[canal][tier]) {
+        funilByCanal[canal][tier] = {
+          leads_value: 0, mql_value: 0, sql_value: 0,
+          sal_value: 0, commit_value: 0, booking_value: 0,
+          isEmptyRow: isEmpty,
+          isTotal: isTotalRow,
+          subCategories: {},
+        }
       }
+      const acc = funilByCanal[canal][tier]
+      // Field names from Funil sheet: leads, mql, sql, sal, commit, booking
+      const fLeads   = toNum(row.leads   ?? row.leads_value)   ?? 0
+      const fMql     = toNum(row.mql     ?? row.mql_value)     ?? 0
+      const fSql     = toNum(row.sql     ?? row.sql_value)     ?? 0
+      const fSal     = toNum(row.sal     ?? row.sal_value)     ?? 0
+      const fCommit  = toNum(row.commit  ?? row.commit_value)  ?? 0
+      const fBooking = toNum(row.booking ?? row.booking_value) ?? 0
+      if (!sub) {
+        acc.leads_value   += fLeads
+        acc.mql_value     += fMql
+        acc.sql_value     += fSql
+        acc.sal_value     += fSal
+        acc.commit_value  += fCommit
+        acc.booking_value += fBooking
+      } else {
+        if (!acc.subCategories[sub]) {
+          acc.subCategories[sub] = { leads: 0, mql: 0, sql: 0, sal: 0, commit: 0, booking: 0 }
+        }
+        const sa = acc.subCategories[sub]
+        sa.leads   += fLeads
+        sa.mql     += fMql
+        sa.sql     += fSql
+        sa.sal     += fSal
+        sa.commit  += fCommit
+        sa.booking += fBooking
+      }
+    } else {
+      // No tier data: aggregate canal totals
+      if (!funilByCanal[canal].__total) {
+        funilByCanal[canal].__total = {
+          leads_value: 0, mql_value: 0, sql_value: 0,
+          sal_value: 0, commit_value: 0, booking_value: 0,
+        }
+      }
+      const acc = funilByCanal[canal].__total
+      acc.leads_value   += toNum(row.leads_value)   ?? 0
+      acc.mql_value     += toNum(row.mql_value)     ?? 0
+      acc.sql_value     += toNum(row.sql_value)     ?? 0
+      acc.sal_value     += toNum(row.sal_value)     ?? 0
+      acc.commit_value  += toNum(row.commit_value)  ?? 0
+      acc.booking_value += toNum(row.booking_value) ?? 0
     }
-    const acc = funilByCanal[canal]
-    acc.leads_value   += toNum(row.leads_value)   ?? 0
-    acc.mql_value     += toNum(row.mql_value)     ?? 0
-    acc.sql_value     += toNum(row.sql_value)     ?? 0
-    acc.sal_value     += toNum(row.sal_value)     ?? 0
-    acc.commit_value  += toNum(row.commit_value)  ?? 0
-    acc.booking_value += toNum(row.booking_value) ?? 0
   }
 
   // Build channels map
@@ -273,7 +308,6 @@ function transformApiData(rawData, mesIni, mesFim) {
 
   for (const canal of allCanals) {
     const k = kpisByCanal[canal] ?? {}
-    const f = funilByCanal[canal] ?? {}
 
     const commitVal   = k.commit_value  ?? 0
     const commitMeta  = k.commit_meta   ?? 0
@@ -295,30 +329,105 @@ function transformApiData(rawData, mesIni, mesFim) {
       booking: { value: bookingVal, provisionado: null, meta: bookingMeta, delta: null },
     }
 
-    const fl  = f.leads_value   ?? 0
-    const fm  = f.mql_value     ?? 0
-    const fs  = f.sql_value     ?? 0
-    const fsal = f.sal_value    ?? 0
-    const fc  = f.commit_value  ?? 0
-    const fb  = f.booking_value ?? 0
+    let tiers
+    const canalFunil = funilByCanal[canal] ?? {}
 
-    const cr1v = fl   > 0 ? (fm  / fl)   * 100 : 0
-    const cr2v = fm   > 0 ? (fs  / fm)   * 100 : 0
-    const cr3v = fs   > 0 ? (fsal / fs)  * 100 : 0
-    const cr4v = fsal > 0 ? (fc  / fsal) * 100 : 0
-    const mwv  = fm   > 0 ? (fc  / fm)   * 100 : 0
+    if (hasTierData) {
+      // Build tier rows in order, skipping Total (recalculated)
+      tiers = []
+      let totLeads = 0, totMql = 0, totSql = 0, totSal = 0, totCommit = 0, totBooking = 0
 
-    const tiers = [{
-      tier:      CANAL_LABEL[canal] ?? canal,
-      leads: fl, mql: fm, sql: fs, sal: fsal, commit: fc, booking: fb,
-      avgTicket: fc > 0 ? Math.round(fb / fc) : 0,
-      cr1:    { val: cr1v, color: crColor(cr1v, 70, 50) },
-      cr2:    { val: cr2v, color: crColor(cr2v, 25, 15) },
-      cr3:    { val: cr3v, color: crColor(cr3v, 80, 65) },
-      cr4:    { val: cr4v, color: crColor(cr4v, 20, 12) },
-      mqlWon: { val: mwv,  color: crColor(mwv,  5,  3)  },
-      isTotal: true,
-    }]
+      for (const tierName of TIER_ORDER) {
+        if (tierName === 'Total') continue
+        const t = canalFunil[tierName]
+        if (!t) continue
+
+        if (t.isEmptyRow) {
+          tiers.push({ tier: tierName, leads: t.leads_value, isEmptyRow: true })
+          totLeads += t.leads_value
+          continue
+        }
+
+        const fl  = t.leads_value
+        const fm  = t.mql_value
+        const fs  = t.sql_value
+        const fsal = t.sal_value
+        const fc  = t.commit_value
+        const fb  = t.booking_value
+
+        const cr1v = fl   > 0 ? (fm  / fl)   * 100 : 0
+        const cr2v = fm   > 0 ? (fs  / fm)   * 100 : 0
+        const cr3v = fs   > 0 ? (fsal / fs)  * 100 : 0
+        const cr4v = fsal > 0 ? (fc  / fsal) * 100 : 0
+        const mwv  = fm   > 0 ? (fc  / fm)   * 100 : 0
+
+        const subCategories = Object.entries(t.subCategories).map(([name, s]) => ({
+          name, leads: s.leads, mql: s.mql, sql: s.sql,
+          sal: s.sal, commit: s.commit, booking: s.booking,
+        }))
+
+        tiers.push({
+          tier: tierName,
+          leads: fl, mql: fm, sql: fs, sal: fsal, commit: fc, booking: fb,
+          avgTicket: fc > 0 ? Math.round(fb / fc) : 0,
+          cr1:    { val: cr1v, color: crColor(cr1v, 70, 50) },
+          cr2:    { val: cr2v, color: crColor(cr2v, 25, 15) },
+          cr3:    { val: cr3v, color: crColor(cr3v, 80, 65) },
+          cr4:    { val: cr4v, color: crColor(cr4v, 20, 12) },
+          mqlWon: { val: mwv,  color: crColor(mwv,  5,  3)  },
+          subCategories,
+        })
+
+        totLeads   += fl;   totMql    += fm;   totSql  += fs
+        totSal     += fsal; totCommit += fc;   totBooking += fb
+      }
+
+      // Add Total row
+      const tcr1 = totLeads   > 0 ? (totMql    / totLeads)   * 100 : 0
+      const tcr2 = totMql     > 0 ? (totSql    / totMql)     * 100 : 0
+      const tcr3 = totSql     > 0 ? (totSal    / totSql)     * 100 : 0
+      const tcr4 = totSal     > 0 ? (totCommit / totSal)     * 100 : 0
+      const tmw  = totMql     > 0 ? (totCommit / totMql)     * 100 : 0
+      tiers.push({
+        tier: 'Total',
+        leads: totLeads, mql: totMql, sql: totSql, sal: totSal,
+        commit: totCommit, booking: totBooking,
+        avgTicket: totCommit > 0 ? Math.round(totBooking / totCommit) : 0,
+        cr1:    { val: tcr1, color: crColor(tcr1, 70, 50) },
+        cr2:    { val: tcr2, color: crColor(tcr2, 25, 15) },
+        cr3:    { val: tcr3, color: crColor(tcr3, 80, 65) },
+        cr4:    { val: tcr4, color: crColor(tcr4, 20, 12) },
+        mqlWon: { val: tmw,  color: crColor(tmw,  5,  3)  },
+        isTotal: true,
+      })
+    } else {
+      // No tier data: one aggregated row per canal (canal label as tier name)
+      const f = canalFunil.__total ?? {}
+      const fl  = f.leads_value   ?? 0
+      const fm  = f.mql_value     ?? 0
+      const fs  = f.sql_value     ?? 0
+      const fsal = f.sal_value    ?? 0
+      const fc  = f.commit_value  ?? 0
+      const fb  = f.booking_value ?? 0
+
+      const cr1v = fl   > 0 ? (fm  / fl)   * 100 : 0
+      const cr2v = fm   > 0 ? (fs  / fm)   * 100 : 0
+      const cr3v = fs   > 0 ? (fsal / fs)  * 100 : 0
+      const cr4v = fsal > 0 ? (fc  / fsal) * 100 : 0
+      const mwv  = fm   > 0 ? (fc  / fm)   * 100 : 0
+
+      tiers = [{
+        tier:      CANAL_LABEL[canal] ?? canal,
+        leads: fl, mql: fm, sql: fs, sal: fsal, commit: fc, booking: fb,
+        avgTicket: fc > 0 ? Math.round(fb / fc) : 0,
+        cr1:    { val: cr1v, color: crColor(cr1v, 70, 50) },
+        cr2:    { val: cr2v, color: crColor(cr2v, 25, 15) },
+        cr3:    { val: cr3v, color: crColor(cr3v, 80, 65) },
+        cr4:    { val: cr4v, color: crColor(cr4v, 20, 12) },
+        mqlWon: { val: mwv,  color: crColor(mwv,  5,  3)  },
+        isTotal: true,
+      }]
+    }
 
     channels[canal] = { kpis, tiers }
   }
@@ -326,7 +435,13 @@ function transformApiData(rawData, mesIni, mesFim) {
   return { channels }
 }
 
+const useMockData = computed(() => {
+  const params = new URLSearchParams(window.location.search)
+  return params.has('mock-data')
+})
+
 const resolvedData = computed(() => {
+  if (useMockData.value) return MOCK_DATA
   if (data.value) return transformApiData(data.value, mesInicial.value, mesFinal.value)
   if (import.meta.env.DEV) return MOCK_DATA
   return null
